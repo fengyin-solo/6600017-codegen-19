@@ -57,6 +57,50 @@
           <p>视星等: {{ store.selectedStar.mag }}</p>
           <p>光谱型: {{ store.selectedStar.spectral }}</p>
         </div>
+
+        <div class="mt-3 pt-3 border-t border-gray-700">
+          <h4 class="text-green-400 text-sm font-semibold mb-2">📝 观测笔记</h4>
+          <div class="space-y-2">
+            <input type="date" v-model="noteDate" class="w-full bg-gray-700 rounded px-2 py-1 text-xs" />
+            <textarea v-model="noteContent" placeholder="记录对这颗天体的观测..." rows="3"
+              class="w-full bg-gray-700 rounded px-2 py-1 text-xs resize-none"></textarea>
+            <button @click="saveNote"
+              :disabled="!noteContent.trim()"
+              class="w-full bg-green-600 hover:bg-green-500 disabled:bg-gray-600 disabled:cursor-not-allowed rounded py-1 text-xs font-semibold transition">
+              保存笔记
+            </button>
+          </div>
+
+          <div v-if="starNotes.length" class="mt-3 space-y-2">
+            <p class="text-xs text-gray-400">历史记录 ({{ starNotes.length }})</p>
+            <div v-for="n in starNotes" :key="n.id" class="bg-gray-700 rounded p-2 text-xs">
+              <div class="flex justify-between items-start mb-1">
+                <span class="text-blue-300">{{ n.date }}</span>
+                <button @click="store.deleteNote(n.id)" class="text-red-400 hover:text-red-300 text-xs">删除</button>
+              </div>
+              <p class="text-gray-200 whitespace-pre-wrap">{{ n.content }}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Observation History -->
+      <div class="bg-gray-800 rounded-xl p-3">
+        <h3 class="text-blue-400 font-bold text-sm">📅 观测历史</h3>
+        <div v-if="!store.notesByDate.sortedKeys.length" class="text-xs text-gray-500 mt-2">
+          暂无观测笔记
+        </div>
+        <div v-else class="mt-2 space-y-3 max-h-64 overflow-y-auto">
+          <div v-for="d in store.notesByDate.sortedKeys" :key="d">
+            <p class="text-xs text-amber-300 font-semibold sticky top-0 bg-gray-800 py-1">{{ d }}</p>
+            <div v-for="n in store.notesByDate.map[d]" :key="n.id"
+              class="bg-gray-700 rounded p-2 text-xs mt-1 cursor-pointer hover:bg-gray-600"
+              @click="jumpToStar(n.starName)">
+              <p class="text-green-300 font-semibold">{{ n.starName }}</p>
+              <p class="text-gray-200 whitespace-pre-wrap mt-1">{{ n.content }}</p>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- Constellation list -->
@@ -80,11 +124,38 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useSkyStore } from './store/sky'
 import StarCanvas from './components/StarCanvas.vue'
+import { STARS } from './data/stars'
 
 const store = useSkyStore()
 const dateStr = ref(new Date().toISOString().slice(0, 16))
 function updateDate() { store.viewDate = new Date(dateStr.value) }
+
+const noteDate = ref(new Date().toISOString().slice(0, 10))
+const noteContent = ref('')
+
+const starNotes = computed(() => {
+  if (!store.selectedStar) return []
+  return store.getNotesForStar(store.selectedStar.name)
+})
+
+watch(() => store.selectedStar, () => {
+  noteContent.value = ''
+})
+
+function saveNote() {
+  if (!store.selectedStar || !noteContent.value.trim()) return
+  store.addNote(store.selectedStar.name, noteContent.value.trim(), noteDate.value)
+  noteContent.value = ''
+}
+
+function jumpToStar(starName: string) {
+  const star = STARS.find(s => s.name === starName)
+  if (star) {
+    store.selectedStar = star
+    store.searchQuery = ''
+  }
+}
 </script>

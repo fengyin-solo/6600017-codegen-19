@@ -1,7 +1,9 @@
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { defineStore } from 'pinia'
 import { STARS, CONSTELLATIONS } from '../data/stars'
-import type { Star } from '../types'
+import type { Star, ObservationNote } from '../types'
+
+const STORAGE_KEY = 'sky-observation-notes'
 
 export const useSkyStore = defineStore('sky', () => {
   const viewDate = ref(new Date())
@@ -14,6 +16,61 @@ export const useSkyStore = defineStore('sky', () => {
   const selectedStar = ref<Star | null>(null)
   const searchQuery = ref('')
   const latitude = ref(39.9) // Beijing default
+
+  const notes = ref<ObservationNote[]>(loadNotes())
+
+  function loadNotes(): ObservationNote[] {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY)
+      return raw ? JSON.parse(raw) : []
+    } catch {
+      return []
+    }
+  }
+
+  watch(notes, (val) => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(val))
+  }, { deep: true })
+
+  const notesByStar = computed(() => {
+    const map: Record<string, ObservationNote[]> = {}
+    for (const n of notes.value) {
+      if (!map[n.starName]) map[n.starName] = []
+      map[n.starName].push(n)
+    }
+    for (const k in map) map[k].sort((a, b) => b.createdAt - a.createdAt)
+    return map
+  })
+
+  const notesByDate = computed(() => {
+    const map: Record<string, ObservationNote[]> = {}
+    for (const n of notes.value) {
+      if (!map[n.date]) map[n.date] = []
+      map[n.date].push(n)
+    }
+    const sortedKeys = Object.keys(map).sort((a, b) => b.localeCompare(a))
+    return { map, sortedKeys }
+  })
+
+  function addNote(starName: string, content: string, date: string) {
+    const note: ObservationNote = {
+      id: Date.now().toString() + Math.random().toString(36).slice(2, 6),
+      starName,
+      content,
+      date,
+      createdAt: Date.now()
+    }
+    notes.value.unshift(note)
+    return note
+  }
+
+  function deleteNote(id: string) {
+    notes.value = notes.value.filter(n => n.id !== id)
+  }
+
+  function getNotesForStar(starName: string): ObservationNote[] {
+    return notesByStar.value[starName] || []
+  }
 
   const localSiderealTime = computed(() => {
     const d = viewDate.value
@@ -72,7 +129,9 @@ export const useSkyStore = defineStore('sky', () => {
   return {
     viewDate, zoom, panX, panY, showLabels, showConstLines, showGrid,
     selectedStar, searchQuery, latitude, localSiderealTime, filteredStars,
+    notes, notesByStar, notesByDate,
     projectStar, starRadius, spectralColor, selectStar,
+    addNote, deleteNote, getNotesForStar,
     STARS, CONSTELLATIONS
   }
 })

@@ -12,3 +12,11 @@ export interface Constellation {
   stars: number[]  // indices into star array
   lines: [number, number][]  // pairs of star indices
 }
+
+export interface ObservationNote {
+  id: string
+  starName: string
+  content: string
+  date: string
+  createdAt: number
+}
